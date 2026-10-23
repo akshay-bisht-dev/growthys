@@ -6,15 +6,31 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "icons": "node scripts/generate-brand-icons.mjs",
+    "postbuild": "node scripts/postbuild.mjs",
+    "package": "npm run build && cd out && zip -qr ../growthys-site.zip . -x '.DS_Store' && cd .. && echo 'Created growthys-site.zip'"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "gsap": "^3.15.0",
+    "lenis": "^1.3.27",
+    "lucide-react": "^1.61.0",
+    "motion": "^14.6.0",
     "next": "16.4.3",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "simple-icons": "^16.35.0"
   },
   "devDependencies": {
     "eslint": "^9",
-    "eslint-config-next": "16.4.3"
+    "eslint-config-next": "16.4.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   }
 }

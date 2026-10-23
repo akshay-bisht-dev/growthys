@@ -1,0 +1,73 @@
+# Builds the static site on every push to main and publishes it to the
+# `deploy` branch, which Hostinger (hPanel → Advanced → Git) pulls into
+# public_html. Optionally calls Hostinger's auto-deploy webhook afterwards.
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Override with a repository variable (Settings → Variables) if needed.
+      NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL || 'https://growthys.com' }}
+      NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+      NEXT_PUBLIC_CONTACT_PHONE: ${{ vars.CONTACT_PHONE }}
+      # Job-level so the deploy step's `if:` can see it (step env can't).
+      HOSTINGER_WEBHOOK_URL: ${{ secrets.HOSTINGER_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+      - name: Publish out/ to the deploy branch
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'manual deploy' }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fast-forward commits on top of the existing branch (Hostinger
+          # pulls it, so history must never be rewritten).
+          if git ls-remote --exit-code --heads origin deploy >/dev/null; then
+            git fetch --depth=1 origin deploy
+            git worktree add publish origin/deploy
+            git -C publish checkout -B deploy
+          else
+            git worktree add --detach publish
+            git -C publish checkout --orphan deploy
+          fi
+
+          # Replace everything except .git with the fresh build (dotfiles included).
+          find publish -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a out/. publish/
+
+          cd publish
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to deploy."
+          else
+            git commit -m "Deploy ${GITHUB_SHA::7}: $(printf '%s' "$COMMIT_MSG" | head -n1)" --quiet
+            git push origin deploy
+          fi
+
+      - name: Trigger Hostinger deploy
+        if: ${{ env.HOSTINGER_WEBHOOK_URL != '' }}
+        run: curl -fsS -X POST "$HOSTINGER_WEBHOOK_URL" -o /dev/null && echo "Hostinger deploy triggered."

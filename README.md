@@ -87,7 +87,20 @@ Technology logos come from [Simple Icons](https://simpleicons.org) (CC0). Only t
 - **Lenis** runs on desktop pointers only and is driven by GSAP's ticker, so ScrollTrigger and Lenis share one clock. Touch devices use native scrolling.
 - **Reduced motion**: an inline script adds `html.js-motion` only when motion is allowed. Without it (or without JavaScript), all content is static and fully visible.
 
-## Deployment (Hostinger shared hosting)
+## Automatic deployment (GitHub → Hostinger)
+
+`.github/workflows/deploy.yml` runs on every push to `main`: it lints, builds the static site and commits the contents of `out/` to the **`deploy`** branch. Hostinger pulls that branch into `public_html`.
+
+One-time setup in hPanel:
+
+1. **Websites → growthys.com → Advanced → Git**. Repository: `https://github.com/akshay-bisht-dev/growthys.git`, branch: `deploy`, directory: leave empty (= `public_html`). `public_html` must be empty for the first deploy — delete the parking page first.
+2. Click **Auto deployment** on the created repository and copy the webhook URL.
+3. In GitHub → **Settings → Secrets and variables → Actions**, add a secret `HOSTINGER_WEBHOOK_URL` with that URL. After each successful build the workflow calls it, and Hostinger pulls the new version.
+4. Optional repository **variables**: `SITE_URL` (default `https://growthys.com`), `CONTACT_EMAIL`, `CONTACT_PHONE`.
+
+The mail config (`growthys-config.php`) lives outside `public_html`, so deployments never overwrite it.
+
+## Manual deployment (Hostinger shared hosting)
 
 ```bash
 npm run package     # next build → out/ (+ postbuild cache rule) → growthys-site.zip

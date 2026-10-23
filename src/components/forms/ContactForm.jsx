@@ -5,6 +5,10 @@ import Link from "next/link";
 import { CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import { BUDGET_OPTIONS, SERVICE_OPTIONS, validateContact } from "@/lib/contact";
 
+// The site is static; form delivery needs a separate endpoint (e.g. the PHP
+// handler in deploy/hostinger). Without one the form says so honestly.
+const ENDPOINT = process.env.NEXT_PUBLIC_CONTACT_ENDPOINT || "";
+
 const initial = { name: "", email: "", phone: "", company: "", service: "", budget: "", message: "", consent: false };
 
 export default function ContactForm({ defaultService = "" }) {
@@ -38,9 +42,17 @@ export default function ContactForm({ defaultService = "" }) {
       focusFirstError(errs);
       return;
     }
+    if (!ENDPOINT) {
+      setStatus({
+        state: "error",
+        message: "Online enquiries aren't connected yet, so this form can't send messages. Please check back soon.",
+      });
+      requestAnimationFrame(() => statusRef.current?.focus());
+      return;
+    }
     setStatus({ state: "loading", message: "" });
     try {
-      const res = await fetch("/api/contact.php", {
+      const res = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

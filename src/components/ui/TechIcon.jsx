@@ -1,6 +1,7 @@
 import brandIcons from "@/data/brand-icons";
+import { withBase } from "@/lib/paths";
 
-export const SPRITE = "/icons/brand-sprite.svg";
+export const SPRITE = withBase("/icons/brand-sprite.svg");
 
 // Dark brand colours (e.g. Next.js black) would vanish on the dark theme.
 export const readableHex = (hex) => {

@@ -2,7 +2,7 @@
 
 Marketing website for **Growthys**, a digital growth agency. Built with Next.js (App Router, JavaScript), GSAP + ScrollTrigger + SplitText, Motion for React, and Lenis.
 
-The site is exported as **static HTML** (`output: "export"`) so it runs on Hostinger shared hosting (Apache/LiteSpeed + PHP, no Node.js). The contact form is handled by a small PHP script.
+The site is exported as **static HTML** (`output: "export"`) and published with **GitHub Pages**: https://akshay-bisht-dev.github.io/growthys/
 
 ## Quick start
 
@@ -25,15 +25,17 @@ Requires Node.js 20.9 or newer.
 
 ## Configuration
 
-**Build time** — `.env.production` (not committed):
+Build-time variables (in CI they are set by the workflow; locally use `.env.local`):
 
 ```bash
-NEXT_PUBLIC_SITE_URL=https://growthys.com   # canonical URLs, sitemap, robots, Open Graph
-NEXT_PUBLIC_CONTACT_EMAIL=                  # optional, shown in footer/contact page
-NEXT_PUBLIC_CONTACT_PHONE=                  # optional
+NEXT_PUBLIC_SITE_URL=https://akshay-bisht-dev.github.io/growthys  # canonical URLs, sitemap, Open Graph
+NEXT_PUBLIC_BASE_PATH=/growthys        # sub-path the site is served under (empty for a root domain)
+NEXT_PUBLIC_CONTACT_ENDPOINT=          # URL that receives form submissions (JSON POST)
+NEXT_PUBLIC_CONTACT_EMAIL=             # optional, shown in footer/contact page
+NEXT_PUBLIC_CONTACT_PHONE=             # optional
 ```
 
-**Contact form (server)** — create `growthys-config.php` **one level above `public_html`** on the server, from `deploy/growthys-config.example.php`. It sets the inbox that receives enquiries, the sender mailbox (must exist on the domain, hPanel → Emails) and an optional Resend API key. Until it exists, the form shows an honest "temporarily unavailable" error — it never reports success unless the mail was accepted.
+**Contact form:** GitHub Pages only serves static files, so the form needs an external endpoint. Until `CONTACT_ENDPOINT` is set (as a repository variable), the form tells visitors that online enquiries aren't connected yet. It never shows a fake success. A ready-made PHP endpoint for PHP hosting is kept in `deploy/hostinger/`.
 
 ## Project structure
 
@@ -53,10 +55,8 @@ src/
   lib/                    gsap setup, metadata helper, shared contact validation
   styles/                 components.css, home.css, pages.css (tokens live in app/globals.css)
 public/
-  .htaccess               HTTPS/non-www redirect, 404 page, caching, security headers
-  api/contact.php         Contact form endpoint: validation, honeypot, timing check, rate limit, mail delivery
   icons/brand-sprite.svg  Generated brand-icon sprite
-deploy/                   Server config example + long-cache rule for hashed assets
+deploy/hostinger/         Optional PHP form endpoint + .htaccess for PHP hosting (not used on GitHub Pages)
   logos/                  Logo assets
 ```
 
@@ -87,46 +87,20 @@ Technology logos come from [Simple Icons](https://simpleicons.org) (CC0). Only t
 - **Lenis** runs on desktop pointers only and is driven by GSAP's ticker, so ScrollTrigger and Lenis share one clock. Touch devices use native scrolling.
 - **Reduced motion**: an inline script adds `html.js-motion` only when motion is allowed. Without it (or without JavaScript), all content is static and fully visible.
 
-## Automatic deployment (GitHub → Hostinger)
+## Deployment (GitHub Pages)
 
-`.github/workflows/deploy.yml` runs on every push to `main`: it lints, builds the static site and commits the contents of `out/` to the **`deploy`** branch. Hostinger pulls that branch into `public_html`.
+`.github/workflows/deploy.yml` runs on every push to `main`: it lints, builds the static site with the correct base path and publishes `out/` to GitHub Pages. Progress is visible under the repository's **Actions** tab; the live URL is
 
-One-time setup in hPanel:
+**https://akshay-bisht-dev.github.io/growthys/**
 
-1. **Websites → growthys.com → Advanced → Git**. Repository: `https://github.com/akshay-bisht-dev/growthys.git`, branch: `deploy`, directory: leave empty (= `public_html`). `public_html` must be empty for the first deploy — delete the parking page first.
-2. Click **Auto deployment** on the created repository and copy the webhook URL.
-3. In GitHub → **Settings → Secrets and variables → Actions**, add a secret `HOSTINGER_WEBHOOK_URL` with that URL. After each successful build the workflow calls it, and Hostinger pulls the new version.
-4. Optional repository **variables**: `SITE_URL` (default `https://growthys.com`), `CONTACT_EMAIL`, `CONTACT_PHONE`.
-
-The mail config (`growthys-config.php`) lives outside `public_html`, so deployments never overwrite it.
-
-## Manual deployment (Hostinger shared hosting)
-
-```bash
-npm run package     # next build → out/ (+ postbuild cache rule) → growthys-site.zip
-```
-
-1. In hPanel → **Files → File Manager → public_html**, remove the default/parking files.
-2. Upload `growthys-site.zip` and **Extract** it into `public_html` (make sure hidden `.htaccess` files are included).
-3. Create `growthys-config.php` next to `public_html` (not inside it) from `deploy/growthys-config.example.php`, and create the sender mailbox in hPanel → Emails.
-4. Make sure SSL is active (hPanel → Security → SSL). `.htaccess` redirects everything to `https://growthys.com`.
-
-Or over SSH (enable in hPanel → Advanced → SSH Access; port 65002):
-
-```bash
-rsync -avz --delete -e "ssh -p 65002" out/ <user>@<ip>:domains/growthys.com/public_html/
-```
-
-Hosts with Node.js (Vercel, Hostinger VPS) can also serve `out/` as static files; to bring back server features (API routes, Cache Components), remove `output: "export"` from `next.config.mjs` and port `public/api/contact.php` back to a route handler.
+To redeploy without a code change, run the workflow manually (Actions → Deploy to GitHub Pages → Run workflow).
 
 ### After deploying
 
-- [ ] `NEXT_PUBLIC_SITE_URL` matches the live domain (check a page's `<link rel="canonical">`)
-- [ ] `/sitemap.xml` and `/robots.txt` load and use the live domain
-- [ ] Submit the sitemap in Google Search Console
-- [ ] Send a real test enquiry and confirm it arrives (and that Reply-To is the visitor)
-- [ ] Unknown URLs (e.g. `/services/nope/`) return a 404 with the custom page
+- [ ] The Actions run is green and the Pages URL loads with styles and icons
+- [ ] A page's `<link rel="canonical">` and `/growthys/sitemap.xml` use the Pages URL
+- [ ] Unknown URLs (e.g. `/growthys/services/nope/`) show the custom 404 page
 - [ ] Share a page link to check the Open Graph image
-- [ ] Run Lighthouse on mobile and desktop
-- [ ] Replace demo case studies, legal templates and the temporary logo before public launch
-- [ ] If adding analytics, gate it behind consent where required and update the privacy policy
+- [ ] Before a public launch: replace the temporary logo, demo case studies and legal templates, and connect a contact endpoint
+
+Note: search engines only read `robots.txt` at a domain root, so `/growthys/robots.txt` is informational until the site moves to its own domain (then set `NEXT_PUBLIC_BASE_PATH` to empty and `NEXT_PUBLIC_SITE_URL` to the domain).

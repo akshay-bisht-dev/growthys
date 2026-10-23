@@ -9,9 +9,7 @@
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "icons": "node scripts/generate-brand-icons.mjs",
-    "postbuild": "node scripts/postbuild.mjs",
-    "package": "npm run build && cd out && zip -qr ../growthys-site.zip . -x '.DS_Store' && cd .. && echo 'Created growthys-site.zip'"
+    "icons": "node scripts/generate-brand-icons.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

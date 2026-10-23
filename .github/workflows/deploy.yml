@@ -1,7 +1,6 @@
-# Builds the static site on every push to main and publishes it to the
-# `deploy` branch, which Hostinger (hPanel → Advanced → Git) pulls into
-# public_html. Optionally calls Hostinger's auto-deploy webhook afterwards.
-name: Build and deploy
+# Builds the static site on every push to main and publishes it with
+# GitHub Pages: https://akshay-bisht-dev.github.io/growthys/
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -9,22 +8,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: deploy
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
-    env:
-      # Override with a repository variable (Settings → Variables) if needed.
-      NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL || 'https://growthys.com' }}
-      NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
-      NEXT_PUBLIC_CONTACT_PHONE: ${{ vars.CONTACT_PHONE }}
-      # Job-level so the deploy step's `if:` can see it (step env can't).
-      HOSTINGER_WEBHOOK_URL: ${{ secrets.HOSTINGER_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,41 +27,35 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
       - run: npm ci
       - run: npm run lint
-      - run: npm run build
 
-      - name: Publish out/ to the deploy branch
+      - name: Build
+        run: npm run build
         env:
-          COMMIT_MSG: ${{ github.event.head_commit.message || 'manual deploy' }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Project sites are served under /<repo>; configure-pages reports it.
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          # Optional repository variables (Settings → Secrets and variables → Actions).
+          NEXT_PUBLIC_CONTACT_ENDPOINT: ${{ vars.CONTACT_ENDPOINT }}
+          NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          NEXT_PUBLIC_CONTACT_PHONE: ${{ vars.CONTACT_PHONE }}
 
-          # Fast-forward commits on top of the existing branch (Hostinger
-          # pulls it, so history must never be rewritten).
-          if git ls-remote --exit-code --heads origin deploy >/dev/null; then
-            git fetch --depth=1 origin deploy
-            git worktree add publish origin/deploy
-            git -C publish checkout -B deploy
-          else
-            git worktree add --detach publish
-            git -C publish checkout --orphan deploy
-          fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
 
-          # Replace everything except .git with the fresh build (dotfiles included).
-          find publish -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a out/. publish/
-
-          cd publish
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to deploy."
-          else
-            git commit -m "Deploy ${GITHUB_SHA::7}: $(printf '%s' "$COMMIT_MSG" | head -n1)" --quiet
-            git push origin deploy
-          fi
-
-      - name: Trigger Hostinger deploy
-        if: ${{ env.HOSTINGER_WEBHOOK_URL != '' }}
-        run: curl -fsS -X POST "$HOSTINGER_WEBHOOK_URL" -o /dev/null && echo "Hostinger deploy triggered."
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
